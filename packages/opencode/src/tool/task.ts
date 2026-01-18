@@ -18,6 +18,19 @@ const parameters = z.object({
   subagent_type: z.string().describe("The type of specialized agent to use for this task"),
   session_id: z.string().describe("Existing Task session to continue").optional(),
   command: z.string().describe("The command that triggered this task").optional(),
+  temperature: z
+    .number()
+    .min(0)
+    .max(2)
+    .optional()
+    .describe("Temperature for LLM sampling (0=deterministic, 2=creative). Overrides agent default."),
+  top_p: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Top-p nucleus sampling probability (0-1). Overrides agent default."),
+  top_k: z.number().int().positive().optional().describe("Top-k sampling limit. Overrides agent default."),
 })
 
 export const TaskTool = Tool.define("task", async (ctx) => {
@@ -54,8 +67,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
         })
       }
 
-      const agent = await Agent.get(params.subagent_type)
-      if (!agent) throw new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`)
+      const agent = await Agent.getOrThrow(params.subagent_type)
 
       const hasTaskPermission = agent.permission.some((rule) => rule.permission === "task")
 
@@ -156,6 +168,14 @@ export const TaskTool = Tool.define("task", async (ctx) => {
           ...(hasTaskPermission ? {} : { task: false }),
           ...Object.fromEntries((config.experimental?.primary_tools ?? []).map((t) => [t, false])),
         },
+        sampling:
+          params.temperature !== undefined || params.top_p !== undefined || params.top_k !== undefined
+            ? {
+                temperature: params.temperature,
+                topP: params.top_p,
+                topK: params.top_k,
+              }
+            : undefined,
         parts: promptParts,
       })
       unsub()

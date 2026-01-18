@@ -15,6 +15,8 @@ import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
 import path from "path"
+import { NamedError } from "@opencode-ai/util/error"
+import fuzzysort from "fuzzysort"
 
 export namespace Agent {
   export const Info = z
@@ -25,6 +27,7 @@ export namespace Agent {
       native: z.boolean().optional(),
       hidden: z.boolean().optional(),
       topP: z.number().optional(),
+      topK: z.number().optional(),
       temperature: z.number().optional(),
       color: z.string().optional(),
       permission: PermissionNext.Ruleset,
@@ -213,6 +216,7 @@ export namespace Agent {
       item.description = value.description ?? item.description
       item.temperature = value.temperature ?? item.temperature
       item.topP = value.top_p ?? item.topP
+      item.topK = value.top_k ?? item.topK
       item.mode = value.mode ?? item.mode
       item.color = value.color ?? item.color
       item.hidden = value.hidden ?? item.hidden
@@ -307,5 +311,24 @@ export namespace Agent {
       }),
     })
     return result.object
+  }
+
+  export const NotFoundError = NamedError.create(
+    "AgentNotFoundError",
+    z.object({
+      agentID: z.string(),
+      suggestions: z.array(z.string()).optional(),
+    }),
+  )
+
+  export async function getOrThrow(agentID: string) {
+    const agents = await state()
+    const agent = agents[agentID]
+    if (agent) return agent
+
+    const availableAgents = Object.keys(agents)
+    const matches = fuzzysort.go(agentID, availableAgents, { limit: 3, threshold: -10000 })
+    const suggestions = matches.map((m) => m.target)
+    throw new NotFoundError({ agentID, suggestions })
   }
 }

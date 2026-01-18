@@ -2,6 +2,7 @@ import { ConfigMarkdown } from "@/config/markdown"
 import { Config } from "../config/config"
 import { MCP } from "../mcp"
 import { Provider } from "../provider/provider"
+import { Agent } from "../agent/agent"
 import { UI } from "./ui"
 
 export function FormatError(input: unknown) {
@@ -14,6 +15,15 @@ export function FormatError(input: unknown) {
       ...(Array.isArray(suggestions) && suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
       `Try: \`opencode models\` to list available models`,
       `Or check your config (opencode.json) provider/model names`,
+    ].join("\n")
+  }
+  if (Agent.NotFoundError.isInstance(input)) {
+    const { agentID, suggestions } = input.data
+    return [
+      `Agent not found: ${agentID}`,
+      ...(Array.isArray(suggestions) && suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
+      `Try: \`opencode agents\` to list available agents`,
+      `Or check your config (opencode.json) agent names`,
     ].join("\n")
   }
   if (Provider.InitError.isInstance(input)) {

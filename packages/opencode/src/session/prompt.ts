@@ -100,6 +100,14 @@ export namespace SessionPrompt {
       ),
     system: z.string().optional(),
     variant: z.string().optional(),
+    sampling: z
+      .object({
+        temperature: z.number().optional(),
+        topP: z.number().optional(),
+        topK: z.number().optional(),
+      })
+      .optional()
+      .describe("Runtime LLM sampling parameter overrides"),
     parts: z.array(
       z.discriminatedUnion("type", [
         MessageV2.TextPart.omit({
@@ -508,7 +516,7 @@ export namespace SessionPrompt {
       }
 
       // normal processing
-      const agent = await Agent.get(lastUser.agent)
+      const agent = await Agent.getOrThrow(lastUser.agent)
       const maxSteps = agent.steps ?? Infinity
       const isLastStep = step >= maxSteps
       msgs = await insertReminders({
@@ -609,6 +617,7 @@ export namespace SessionPrompt {
         ],
         tools,
         model,
+        sampling: lastUser.sampling,
       })
       if (result === "stop") break
       if (result === "compact") {
@@ -835,6 +844,7 @@ export namespace SessionPrompt {
       model: input.model ?? agent.model ?? (await lastModel(input.sessionID)),
       system: input.system,
       variant: input.variant,
+      sampling: input.sampling,
     }
 
     const parts = await Promise.all(
