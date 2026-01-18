@@ -41,6 +41,11 @@ export namespace LLM {
     small?: boolean
     tools: Record<string, Tool>
     retries?: number
+    sampling?: {
+      temperature?: number
+      topP?: number
+      topK?: number
+    }
   }
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
@@ -123,10 +128,14 @@ export namespace LLM {
       },
       {
         temperature: input.model.capabilities.temperature
-          ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
+          ? (input.sampling?.temperature ?? input.agent.temperature ?? ProviderTransform.temperature(input.model))
           : undefined,
-        topP: input.agent.topP ?? ProviderTransform.topP(input.model),
-        topK: ProviderTransform.topK(input.model),
+        topP: input.model.capabilities.temperature
+          ? (input.sampling?.topP ?? input.agent.topP ?? ProviderTransform.topP(input.model))
+          : undefined,
+        topK: input.model.capabilities.temperature
+          ? (input.sampling?.topK ?? input.agent.topK ?? ProviderTransform.topK(input.model))
+          : undefined,
         options,
       },
     )

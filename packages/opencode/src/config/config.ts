@@ -550,6 +550,7 @@ export namespace Config {
       model: z.string().optional(),
       temperature: z.number().optional(),
       top_p: z.number().optional(),
+      top_k: z.number().optional(),
       prompt: z.string().optional(),
       tools: z.record(z.string(), z.boolean()).optional().describe("@deprecated Use 'permission' field instead"),
       disable: z.boolean().optional(),
@@ -583,6 +584,7 @@ export namespace Config {
         "description",
         "temperature",
         "top_p",
+        "top_k",
         "mode",
         "hidden",
         "color",
@@ -1200,7 +1202,8 @@ export namespace Config {
         for (let i = 0; i < data.plugin.length; i++) {
           const plugin = data.plugin[i]
           try {
-            data.plugin[i] = import.meta.resolve!(plugin, configFilepath)
+            const resolved = import.meta.resolve!(plugin, configFilepath)
+            data.plugin[i] = typeof resolved === "string" ? resolved : await resolved
           } catch (err) {}
         }
       }
