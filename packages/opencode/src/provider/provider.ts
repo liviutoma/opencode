@@ -506,6 +506,99 @@ export namespace Provider {
         },
       }
     },
+    lmstudio: async (input) => {
+      const config = await Config.get()
+      const providerConfig = config.provider?.["lmstudio"]
+      const baseURL = providerConfig?.options?.baseURL ?? providerConfig?.options?.api ?? input.options?.["baseURL"] ?? "http://127.0.0.1:1234/v1"
+      const timeout = providerConfig?.options?.discoveryTimeout ?? 3000
+      const apiKey = await (async () => {
+        const env = Env.all()
+        const envKey = input.env.map((item) => env[item]).find(Boolean)
+        if (envKey) return envKey
+        const auth = await Auth.get("lmstudio")
+        if (auth?.type === "api") return auth.key
+        return undefined
+      })()
+
+      const liveModels = await (async () => {
+        try {
+          const headers: Record<string, string> = { "Content-Type": "application/json" }
+          if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
+          const res = await fetch(`${baseURL}/models`, {
+            headers,
+            signal: AbortSignal.timeout(timeout),
+          })
+          if (!res.ok) {
+            log.info("lmstudio: /models returned non-ok status, skipping", { status: res.status, baseURL })
+            return undefined
+          }
+          const json = await res.json() as { data?: { id: string }[] }
+          return json.data?.map((m) => m.id).filter(Boolean)
+        } catch (e) {
+          log.info("lmstudio: server unreachable, provider disabled", { baseURL })
+          return undefined
+        }
+      })()
+
+      if (!liveModels) return { autoload: false }
+
+      // Replace model list with only what's actually installed, using catalog metadata where available
+      const catalogModels = input.models
+      const resolved: Record<string, typeof catalogModels[string]> = {}
+      for (const id of liveModels) {
+        const catalog = catalogModels[id]
+        if (catalog) {
+          resolved[id] = catalog
+          continue
+        }
+        // Not in catalog — create a minimal model entry from the live ID
+        const name = id.split("/").pop() ?? id
+        resolved[id] = {
+          id,
+          providerID: "lmstudio",
+          name,
+          family: id.split("/")[0] ?? "",
+          api: {
+            id,
+            url: baseURL,
+            npm: "@ai-sdk/openai-compatible",
+          },
+          status: "active",
+          attachment: false,
+          reasoning: false,
+          tool_call: true,
+          temperature: true,
+          release_date: "",
+          cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+          limit: { context: 32768, output: 4096 },
+          capabilities: {
+            temperature: true,
+            reasoning: false,
+            attachment: false,
+            toolcall: true,
+            input: { text: true, audio: false, image: false, video: false, pdf: false },
+            output: { text: true, audio: false, image: false, video: false, pdf: false },
+            interleaved: false,
+          },
+          headers: {},
+          options: {},
+          variants: {},
+        } as any
+      }
+
+      input.models = resolved
+
+      return {
+        autoload: true,
+        options: {
+          baseURL,
+          ...(apiKey ? { apiKey } : { apiKey: "lmstudio" }),
+        },
+        async getModel(sdk: any, modelID: string) {
+          return sdk.languageModel(modelID)
+        },
+      }
+    },
   }
 
   export const Model = z
@@ -889,7 +982,9 @@ export namespace Provider {
       if (result && (result.autoload || providers[providerID])) {
         if (result.getModel) modelLoaders[providerID] = result.getModel
         const opts = result.options ?? {}
-        const patch: Partial<Info> = providers[providerID] ? { options: opts } : { source: "custom", options: opts }
+        const patch: Partial<Info> = providers[providerID]
+          ? { options: opts, models: data.models }
+          : { source: "custom", options: opts }
         mergeProvider(providerID, patch)
       }
     }

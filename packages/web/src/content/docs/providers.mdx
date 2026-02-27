@@ -1103,35 +1103,46 @@ IO.NET offers 17 models optimized for various use cases:
 
 ### LM Studio
 
-You can configure opencode to use local models through LM Studio.
+OpenCode has **built-in support for LM Studio** — it automatically discovers the models you have installed by querying LM Studio's local API. No need to list models manually.
 
-```json title="opencode.json" "lmstudio" {5, 6, 8, 10-14}
+1. Start LM Studio and make sure the **Local Server** is running (default port: `1234`).
+
+2. Run the `/models` command in OpenCode — your installed models will appear automatically under **lmstudio**.
+
+   ```txt
+   /models
+   ```
+
+That's it. OpenCode detects which models are loaded in LM Studio and offers only those, preventing "invalid model identifier" errors.
+
+:::tip
+If LM Studio is unreachable (not running or wrong port), the provider is silently skipped. Start LM Studio's local server and restart OpenCode to pick it up.
+:::
+
+#### Custom base URL
+
+By default OpenCode connects to `http://127.0.0.1:1234/v1`. Override this if you run LM Studio on a different host or port:
+
+```json title="opencode.json"
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
     "lmstudio": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (local)",
       "options": {
-        "baseURL": "http://127.0.0.1:1234/v1"
-      },
-      "models": {
-        "google/gemma-3n-e4b": {
-          "name": "Gemma 3n-e4b (local)"
-        }
+        "baseURL": "http://192.168.1.50:1234/v1"
       }
     }
   }
 }
 ```
 
-In this example:
+#### API key
 
-- `lmstudio` is the custom provider ID. This can be any string you want.
-- `npm` specifies the package to use for this provider. Here, `@ai-sdk/openai-compatible` is used for any OpenAI-compatible API.
-- `name` is the display name for the provider in the UI.
-- `options.baseURL` is the endpoint for the local server.
-- `models` is a map of model IDs to their configurations. The model name will be displayed in the model selection list.
+LM Studio doesn't require an API key by default. If you've configured one, pass it via `/connect` or the `LMSTUDIO_API_KEY` environment variable:
+
+```bash
+LMSTUDIO_API_KEY=my-key opencode
+```
 
 ---
 
